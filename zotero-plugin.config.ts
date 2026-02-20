@@ -10,7 +10,7 @@ export default defineConfig({
     define: {
       author: "Vibe",
       description: "A Zotero plugin for translating selected text",
-      homepage: "https://github.com/user/vibe-zotero-translate",
+      homepage: "https://github.com/11zhouxuan/vibe-zotero-translate",
       buildVersion: "{{version}}",
       buildTime: "{{buildTime}}",
     },

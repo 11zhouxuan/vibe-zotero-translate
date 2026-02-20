@@ -3,7 +3,7 @@
   "name": "Vibe Zotero Translate",
   "version": "0.1.0",
   "description": "A Zotero plugin for translating selected text",
-  "homepage_url": "https://github.com/user/vibe-zotero-translate",
+  "homepage_url": "https://github.com/11zhouxuan/vibe-zotero-translate",
   "applications": {
     "zotero": {
       "id": "vibe-zotero-translate@example.com",

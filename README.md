@@ -6,8 +6,8 @@
 
 [![Zotero 7](https://img.shields.io/badge/Zotero-7%2F8-4B8BBE?logo=zotero&logoColor=white)](https://www.zotero.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub Release](https://img.shields.io/github/v/release/user/vibe-zotero-translate?include_prereleases&label=Release)](https://github.com/user/vibe-zotero-translate/releases)
-[![Build XPI](https://img.shields.io/github/actions/workflow/status/user/vibe-zotero-translate/release.yml?label=Build)](https://github.com/user/vibe-zotero-translate/actions)
+[![GitHub Release](https://img.shields.io/github/v/release/11zhouxuan/vibe-zotero-translate?include_prereleases&label=Release)](https://github.com/11zhouxuan/vibe-zotero-translate/releases)
+[![Build XPI](https://img.shields.io/github/actions/workflow/status/11zhouxuan/vibe-zotero-translate/release.yml?label=Build)](https://github.com/11zhouxuan/vibe-zotero-translate/actions)
 
 **Select text → Get instant translation → Build your wordbook**
 
@@ -63,7 +63,7 @@ For sentences and paragraphs, get a professional translation with term annotatio
 
 ### Option 1: Download from Releases (Recommended)
 
-1. Go to [**Releases**](https://github.com/user/vibe-zotero-translate/releases)
+1. Go to [**Releases**](https://github.com/11zhouxuan/vibe-zotero-translate/releases)
 2. Download the latest `vibe-zotero-translate.xpi`
 3. In Zotero: **Tools** → **Add-ons** → ⚙️ → **Install Add-on From File**
 4. Select the downloaded `.xpi` file
@@ -72,7 +72,7 @@ For sentences and paragraphs, get a professional translation with term annotatio
 ### Option 2: Build from Source
 
 ```bash
-git clone https://github.com/user/vibe-zotero-translate.git
+git clone https://github.com/11zhouxuan/vibe-zotero-translate.git
 cd vibe-zotero-translate
 npm install
 npm run build
@@ -152,7 +152,7 @@ The Python server supports:
 
 ```bash
 # Clone the repo
-git clone https://github.com/user/vibe-zotero-translate.git
+git clone https://github.com/11zhouxuan/vibe-zotero-translate.git
 cd vibe-zotero-translate
 
 # Install dependencies

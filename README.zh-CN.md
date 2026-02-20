@@ -6,8 +6,8 @@
 
 [![Zotero 7](https://img.shields.io/badge/Zotero-7%2F8-4B8BBE?logo=zotero&logoColor=white)](https://www.zotero.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub Release](https://img.shields.io/github/v/release/user/vibe-zotero-translate?include_prereleases&label=Release)](https://github.com/user/vibe-zotero-translate/releases)
-[![Build XPI](https://img.shields.io/github/actions/workflow/status/user/vibe-zotero-translate/release.yml?label=Build)](https://github.com/user/vibe-zotero-translate/actions)
+[![GitHub Release](https://img.shields.io/github/v/release/11zhouxuan/vibe-zotero-translate?include_prereleases&label=Release)](https://github.com/11zhouxuan/vibe-zotero-translate/releases)
+[![Build XPI](https://img.shields.io/github/actions/workflow/status/11zhouxuan/vibe-zotero-translate/release.yml?label=Build)](https://github.com/11zhouxuan/vibe-zotero-translate/actions)
 
 **划词即译 · 上下文感知 · 智能生词本**
 
@@ -63,7 +63,7 @@
 
 ### 方式一：从 Releases 下载（推荐）
 
-1. 前往 [**Releases 页面**](https://github.com/user/vibe-zotero-translate/releases)
+1. 前往 [**Releases 页面**](https://github.com/11zhouxuan/vibe-zotero-translate/releases)
 2. 下载最新的 `vibe-zotero-translate.xpi`
 3. 在 Zotero 中：**工具** → **附加组件** → ⚙️ → **从文件安装附加组件**
 4. 选择下载的 `.xpi` 文件
@@ -72,7 +72,7 @@
 ### 方式二：从源码编译
 
 ```bash
-git clone https://github.com/user/vibe-zotero-translate.git
+git clone https://github.com/11zhouxuan/vibe-zotero-translate.git
 cd vibe-zotero-translate
 npm install
 npm run build
@@ -157,7 +157,7 @@ Python 服务器支持：
 
 ```bash
 # 克隆仓库
-git clone https://github.com/user/vibe-zotero-translate.git
+git clone https://github.com/11zhouxuan/vibe-zotero-translate.git
 cd vibe-zotero-translate
 
 # 安装依赖
