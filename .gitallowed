@@ -1,0 +1,5 @@
+# git-secrets allowed patterns (false positives)
+# GPG key references in node_modules READMEs
+Release GPG key:
+# git-secrets own config pattern
+bedrock-api-key-YmVkcm9jay5hbWF6b25hd3MuY29t

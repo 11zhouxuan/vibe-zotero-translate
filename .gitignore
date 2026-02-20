@@ -1,0 +1,10 @@
+node_modules/
+.scaffold/
+*.xpi
+.env
+.env.*
+!.env.example
+dist/
+
+# Old wordbook server (to be removed)
+wordbook-server/
