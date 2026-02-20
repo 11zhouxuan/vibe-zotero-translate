@@ -1,0 +1,52 @@
+name: Build and Release XPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build XPI
+        run: npm run build
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Release ${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## Vibe Zotero Translate ${{ steps.version.outputs.VERSION }}
+
+            ### Installation
+            1. Download `vibe-zotero-translate.xpi` below
+            2. In Zotero, go to Tools → Add-ons
+            3. Click the gear icon → Install Add-on From File
+            4. Select the downloaded `.xpi` file
+
+          files: |
+            .scaffold/build/vibe-zotero-translate.xpi
+            .scaffold/build/update.json
+          draft: false
+          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') || contains(github.ref, '-alpha') }}
