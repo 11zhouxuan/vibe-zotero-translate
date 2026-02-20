@@ -25,7 +25,7 @@
 | 🖼️ **Visual Context** | Automatically captures PDF page screenshot for AI context — domain-specific terms translated more accurately |
 | 📒 **Smart Wordbook** | Every translation is auto-saved with query count, page number, and timestamps |
 | 🤖 **Dual LLM Engines** | AWS Bedrock (Claude) + any OpenAI-compatible API (GPT-4o, local models, etc.) |
-| 🌍 **11 Languages** | Chinese, English, Japanese, Korean, French, German, Spanish, Portuguese, Russian, Arabic, and more |
+| 🌍 **Multi-Language** | Chinese, English, Japanese, Korean, French, German, Spanish, Portuguese, Russian, Arabic, and more |
 | 📤 **Anki Export** | Export your wordbook to Anki for spaced repetition learning |
 | ⚡ **Zero Dependencies** | Pure Zotero plugin — no external software needed |
 
@@ -114,27 +114,32 @@ Works with OpenAI, Azure OpenAI, Ollama, LM Studio, and any OpenAI-compatible AP
 
 | Setting | Options | Default |
 |---------|---------|---------|
-| Target Language | 11 languages | Chinese (Simplified) |
+| Target Language | Any language your LLM supports | Chinese (Simplified) |
 | Popup Position | Inline / Bottom-Left / Bottom-Right / Top-Left / Top-Right | Inline (near selection) |
-| Page Context | Enable/disable screenshot context | Enabled |
+| Page Context | Send PDF page screenshot to LLM for context-aware translation | Enabled |
+
+> 💡 Translation is powered by LLM, so you can translate to **any language** your model supports — not limited to a fixed list.
 
 ## 📒 Wordbook
 
 Every translation is automatically saved to your wordbook at `~/Documents/zotero-wordbook/`.
 
-### Features
-- 🔍 **Search** — Find words by text or translation
-- ⭐ **Star** — Mark important words for review
-- 📊 **Stats** — Track total words, query counts, and more
-- 📤 **Export** — CSV, Anki TSV, or JSON format
+### ✨ Feature Showcase
+
+| Feature | Description |
+|---------|-------------|
+| 🔍 **Full-text Search** | Search by original text or translation |
+| ⭐ **Star & Favorite** | Mark important words for focused review |
+| 📊 **Statistics Dashboard** | Total words, query frequency, starred count |
+| ✏️ **Inline Editing** | Edit translations directly in the web UI |
+| 📤 **Multi-format Export** | CSV, Anki TSV (for spaced repetition), JSON |
+| 🗑️ **Full CRUD** | Create, read, update, delete with persistence |
+| 📁 **Safe Storage** | Data survives plugin reinstalls — individual JSON files |
 
 ### Viewing Your Wordbook
 
-**Option A: Static HTML** (built-in)
-- In Zotero settings → Vibe Zotero Translate → Click "Open Wordbook"
-- Opens a beautiful HTML page in your browser
+Run the built-in Python server for a full interactive experience:
 
-**Option B: Interactive Web Server** (full CRUD)
 ```bash
 cd ~/Documents/zotero-wordbook
 pip install fastapi uvicorn
@@ -142,11 +147,7 @@ python wordbook_server.py
 # Open http://localhost:8765
 ```
 
-The Python server supports:
-- ✏️ Edit translations inline
-- ⭐ Toggle star with persistence
-- 🗑️ Delete words permanently
-- 🔄 Auto-refresh every 10 seconds
+> � `wordbook_server.py` is automatically copied to your wordbook folder when the plugin starts.
 
 ## 🔧 Development
 
