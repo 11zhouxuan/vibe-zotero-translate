@@ -1,0 +1,121 @@
+<vbox id="vibe-zotero-translate-prefs"
+      xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      xmlns:html="http://www.w3.org/1999/xhtml"
+      onload="var p=Zotero.Prefs.get('extensions.vibe-zotero-translate.provider',true)||'bedrock';document.getElementById('vibe-bedrock-group').hidden=(p!=='bedrock');document.getElementById('vibe-openai-group').hidden=(p!=='openai');try{var wp=Zotero.Prefs.get('extensions.vibe-zotero-translate.wordbookPath',true);if(!wp){var homeDir=Services.dirsvc.get('Home',Components.interfaces.nsIFile).path;wp=homeDir+'/Documents/zotero-wordbook';}document.getElementById('vibe-zotero-translate-wordbookPathDisplay').setAttribute('value',wp);var cb=document.getElementById('vibe-zotero-translate-wordbookPathEdit');var inp=document.getElementById('vibe-zotero-translate-wordbookPath');if(wp!==homeDir+'/Documents/zotero-wordbook'){cb.checked=true;inp.disabled=false;}document.getElementById('vibe-zotero-translate-serverCmd').value='cd '+wp+' &amp;&amp; pip install fastapi uvicorn &amp;&amp; python wordbook_server.py';}catch(e){}">
+  <groupbox>
+    <label><html:h2>General</html:h2></label>
+    <checkbox id="vibe-zotero-translate-enable" label="Enable plugin" native="true" preference="enable" />
+    <hbox align="center">
+      <label value="Provider:" style="width: 140px;" />
+      <menulist id="vibe-zotero-translate-provider" native="true" preference="provider"
+        oncommand="var v=this.value;document.getElementById('vibe-bedrock-group').hidden=(v!=='bedrock');document.getElementById('vibe-openai-group').hidden=(v!=='openai');">
+        <menupopup>
+          <menuitem label="AWS Bedrock" value="bedrock" />
+          <menuitem label="OpenAI Compatible" value="openai" />
+        </menupopup>
+      </menulist>
+    </hbox>
+  </groupbox>
+  <groupbox id="vibe-bedrock-group">
+    <label><html:h2>AWS Bedrock</html:h2></label>
+    <hbox align="center">
+      <label value="API Key:" style="width: 140px;" />
+      <html:input id="vibe-zotero-translate-bedrock-apiKey" type="password" native="true" preference="bedrock.apiKey" style="flex: 1;" />
+    </hbox>
+    <hbox align="center">
+      <label value="Model ID:" style="width: 140px;" />
+      <html:input id="vibe-zotero-translate-bedrock-modelId" type="text" native="true" preference="bedrock.modelId" style="flex: 1;" />
+    </hbox>
+    <hbox align="center">
+      <label value="Region:" style="width: 140px;" />
+      <html:input id="vibe-zotero-translate-bedrock-region" type="text" native="true" preference="bedrock.region" style="flex: 1;" />
+    </hbox>
+  </groupbox>
+  <groupbox id="vibe-openai-group" hidden="true">
+    <label><html:h2>OpenAI Compatible</html:h2></label>
+    <hbox align="center">
+      <label value="API Key:" style="width: 140px;" />
+      <html:input id="vibe-zotero-translate-openai-apiKey" type="password" native="true" preference="openai.apiKey" style="flex: 1;" />
+    </hbox>
+    <hbox align="center">
+      <label value="Model ID:" style="width: 140px;" />
+      <html:input id="vibe-zotero-translate-openai-modelId" type="text" native="true" preference="openai.modelId" style="flex: 1;" />
+    </hbox>
+    <hbox align="center">
+      <label value="Endpoint:" style="width: 140px;" />
+      <html:input id="vibe-zotero-translate-openai-endpoint" type="text" native="true" preference="openai.endpoint" style="flex: 1;" />
+    </hbox>
+  </groupbox>
+  <groupbox>
+    <label><html:h2>Test</html:h2></label>
+    <hbox align="center">
+      <button id="vibe-zotero-translate-test-btn" label="Test Connection"
+        oncommand="var b=this;var r=document.getElementById('vibe-zotero-translate-test-result');b.disabled=true;b.setAttribute('label','Testing...');r.setAttribute('value','');var p=Zotero.VibeZoteroTranslate;if(!p){r.setAttribute('value','Error: Plugin not loaded');b.disabled=false;b.setAttribute('label','Test Connection');return;}p.testConnection().then(function(s){r.setAttribute('value','OK: '+s);b.disabled=false;b.setAttribute('label','Test Connection');}).catch(function(e){r.setAttribute('value','Error: '+(e.message||String(e)));b.disabled=false;b.setAttribute('label','Test Connection');});" />
+      <label id="vibe-zotero-translate-test-result" value="" style="margin-left: 10px; font-size: 12px; flex: 1;" crop="end" />
+    </hbox>
+  </groupbox>
+  <groupbox>
+    <label><html:h2>Translation</html:h2></label>
+    <hbox align="center">
+      <label value="Target Language:" style="width: 140px;" />
+      <menulist id="vibe-zotero-translate-targetLanguage" native="true" preference="targetLanguage">
+        <menupopup>
+          <menuitem label="Chinese (Simplified)" value="zh-CN" />
+          <menuitem label="Chinese (Traditional)" value="zh-TW" />
+          <menuitem label="English" value="en" />
+          <menuitem label="Japanese" value="ja" />
+          <menuitem label="Korean" value="ko" />
+          <menuitem label="French" value="fr" />
+          <menuitem label="German" value="de" />
+          <menuitem label="Spanish" value="es" />
+          <menuitem label="Portuguese" value="pt" />
+          <menuitem label="Russian" value="ru" />
+          <menuitem label="Arabic" value="ar" />
+        </menupopup>
+      </menulist>
+    </hbox>
+  </groupbox>
+  <groupbox>
+    <label><html:h2>Context</html:h2></label>
+    <checkbox id="vibe-zotero-translate-enableContext" label="Enable page screenshot as context (for better translation)" native="true" preference="enableContext" />
+  </groupbox>
+  <groupbox>
+    <label><html:h2>Display</html:h2></label>
+    <hbox align="center">
+      <label value="Popup Position:" style="width: 140px;" />
+      <menulist id="vibe-zotero-translate-popupPosition" native="true" preference="popupPosition">
+        <menupopup>
+          <menuitem label="Near selection popup (default)" value="popup" />
+          <menuitem label="Bottom Left" value="bottom-left" />
+          <menuitem label="Bottom Right" value="bottom-right" />
+          <menuitem label="Top Left" value="top-left" />
+          <menuitem label="Top Right" value="top-right" />
+        </menupopup>
+      </menulist>
+    </hbox>
+  </groupbox>
+  <groupbox>
+    <label><html:h2>Wordbook</html:h2></label>
+    <hbox align="center">
+      <label value="Current Path:" style="width: 140px;" />
+      <label id="vibe-zotero-translate-wordbookPathDisplay" value="" style="font-size: 12px; color: #333; flex: 1; font-family: monospace;" crop="center" />
+    </hbox>
+    <hbox align="center">
+      <checkbox id="vibe-zotero-translate-wordbookPathEdit" label="Use custom path:"
+        oncommand="var inp=document.getElementById('vibe-zotero-translate-wordbookPath');inp.disabled=!this.checked;if(!this.checked){inp.value='';Zotero.Prefs.set('extensions.vibe-zotero-translate.wordbookPath','',true);}" />
+      <html:input id="vibe-zotero-translate-wordbookPath" type="text" native="true" preference="wordbookPath" style="flex: 1;" disabled="true" placeholder="Enter custom path..." />
+    </hbox>
+    <label value="Data persists across plugin reinstalls. wordbook_server.py is auto-copied to your wordbook folder." style="font-size: 11px; color: #888; margin-top: 4px;" />
+    <hbox align="center" style="margin-top: 6px;">
+      <button id="vibe-zotero-translate-wordbook-folder-btn" label="Open Folder"
+        oncommand="try{var wp=Zotero.Prefs.get('extensions.vibe-zotero-translate.wordbookPath',true);if(!wp){var h=Services.dirsvc.get('Home',Components.interfaces.nsIFile).path;wp=h+'/Documents/zotero-wordbook';}var f=Components.classes['@mozilla.org/file/local;1'].createInstance(Components.interfaces.nsIFile);f.initWithPath(wp);if(!f.exists()){f.create(Components.interfaces.nsIFile.DIRECTORY_TYPE,0o755);}f.reveal();}catch(e){Zotero.launchURL('file://'+wp);}" />
+    </hbox>
+    <label value="Run this command to start the wordbook server:" style="font-size: 11px; color: #555; margin-top: 8px;" />
+    <html:input id="vibe-zotero-translate-serverCmd" type="text" readonly="true" style="flex: 1; font-family: monospace; font-size: 12px; color: #333; margin-top: 4px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; background: #f8f8f8; cursor: text;" />
+    <label value="Then open http://localhost:8765 for full interactive wordbook." style="font-size: 11px; color: #888; margin-top: 4px;" />
+  </groupbox>
+  <groupbox>
+    <label><html:h2>Debug</html:h2></label>
+    <checkbox id="vibe-zotero-translate-debug" label="Enable debug logging (verbose output in Zotero console)" native="true" preference="debug" />
+  </groupbox>
+</vbox>

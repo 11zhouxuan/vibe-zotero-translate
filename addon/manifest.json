@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "Vibe Zotero Translate",
+  "version": "0.1.0",
+  "description": "A Zotero plugin for translating selected text",
+  "homepage_url": "https://github.com/user/vibe-zotero-translate",
+  "applications": {
+    "zotero": {
+      "id": "vibe-zotero-translate@example.com",
+      "update_url": "",
+      "strict_min_version": "6.999",
+      "strict_max_version": "8.*"
+    }
+  }
+}
