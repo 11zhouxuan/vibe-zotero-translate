@@ -13,7 +13,7 @@
     "url": "https://github.com/user/zotero-translate.git"
   },
   "author": "",
-  "license": "AGPL-3.0-or-later",
+  "license": "MIT",
   "config": {
     "prefsPrefix": "extensions.vibe-zotero-translate"
   },
