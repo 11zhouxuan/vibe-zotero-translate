@@ -441,7 +441,7 @@ export function triggerTranslation(text?: string, reader?: any, doc?: Document, 
 }
 
 /**
- * Build a "Translate" button that gets appended into Zotero's native text selection popup.
+ * Build a floating "Translate" button positioned above the selected text.
  * Used when autoTranslate is disabled (manual mode).
  */
 function buildTranslateButton(
@@ -450,43 +450,69 @@ function buildTranslateButton(
   selectedText: string,
   reader: any
 ): void {
+  // Remove any existing floating translate button
+  const existingBtn = doc.getElementById("vibe-translate-btn-float");
+  if (existingBtn) existingBtn.remove();
+
+  // Get selection position to place button above it
+  let topPos = 10;
+  let leftPos = 10;
+  try {
+    const sel = doc.getSelection?.() || (doc as any).defaultView?.getSelection?.();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      if (rect && rect.top > 0) {
+        topPos = Math.max(4, rect.top - 36);
+        leftPos = Math.max(4, rect.left);
+      }
+    }
+  } catch (e) {
+    debug(`Could not get selection rect: ${e}`);
+  }
+
   const container = doc.createElement("div");
-  container.id = TRANSLATE_CONTENT_ID;
+  container.id = "vibe-translate-btn-float";
   container.style.cssText = `
-    width: calc(100% - 4px);
-    margin: 4px 2px;
-    box-sizing: border-box;
+    position: fixed;
+    top: ${topPos}px;
+    left: ${leftPos}px;
+    z-index: 2147483647;
+    pointer-events: auto;
   `;
 
   const btn = doc.createElement("div");
   btn.style.cssText = `
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 6px 12px;
-    background: var(--color-sidepane, #f5f5f5);
+    gap: 4px;
+    padding: 4px 12px;
+    background: #667eea;
+    color: #fff;
     border-radius: 6px;
     cursor: pointer;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 13px;
-    color: #555;
-    transition: background 0.15s;
+    font-size: 12px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    transition: background 0.15s, transform 0.1s;
     user-select: none;
+    white-space: nowrap;
   `;
-  btn.textContent = "🌐 Translate (Ctrl+Shift+T)";
+  btn.textContent = "\uD83C\uDF10 Translate";
 
   btn.addEventListener("mouseenter", () => {
-    btn.style.background = "var(--color-accent, #667eea)";
-    btn.style.color = "#fff";
+    btn.style.background = "#5a6fd6";
+    btn.style.transform = "scale(1.03)";
   });
   btn.addEventListener("mouseleave", () => {
-    btn.style.background = "var(--color-sidepane, #f5f5f5)";
-    btn.style.color = "#555";
+    btn.style.background = "#667eea";
+    btn.style.transform = "scale(1)";
   });
 
-  btn.addEventListener("click", () => {
-    // Replace button with translation popup
+  btn.addEventListener("click", (e: Event) => {
+    e.preventDefault();
+    e.stopPropagation();
     container.remove();
     const context = prepareContext(selectedText, reader);
     const position = getPopupPosition();
@@ -498,8 +524,26 @@ function buildTranslateButton(
   });
 
   container.appendChild(btn);
-  append(container);
-  debug("Translate button appended to DOM");
+
+  // Append to the reader document body (floating above content)
+  const target = doc.body || doc.documentElement;
+  if (target) {
+    target.appendChild(container);
+  }
+  debug(`Floating translate button shown at top=${topPos}, left=${leftPos}`);
+
+  // Auto-remove after 30s
+  const cleanup = () => { try { container.remove(); } catch (_e) { /* ignore */ } };
+  setTimeout(cleanup, 30000);
+
+  // Remove on mousedown elsewhere
+  const onMouseDown = (ev: Event) => {
+    if (!container.contains(ev.target as Node)) {
+      cleanup();
+      doc.removeEventListener("mousedown", onMouseDown, true);
+    }
+  };
+  setTimeout(() => doc.addEventListener("mousedown", onMouseDown, true), 100);
 }
 
 /**
