@@ -441,9 +441,9 @@ export function triggerTranslation(text?: string, reader?: any, doc?: Document, 
 }
 
 /**
- * Build a compact "Translate" button appended to Zotero's selection popup.
- * Zotero positions the popup near the selected text automatically.
- * When the selection is cancelled, Zotero removes the popup (and our button with it).
+ * Build a floating "Translate" button above the selected text.
+ * Uses append() to probe the Zotero popup position, then creates a floating button above it.
+ * A MutationObserver watches for popup removal to clean up the button.
  */
 function buildTranslateButton(
   doc: Document,
@@ -451,58 +451,115 @@ function buildTranslateButton(
   selectedText: string,
   reader: any
 ): void {
-  const container = doc.createElement("div");
-  container.id = TRANSLATE_CONTENT_ID;
-  container.style.cssText = `
-    width: calc(100% - 4px);
-    margin: 4px 2px;
-    box-sizing: border-box;
-  `;
+  // Remove any previous floating button
+  const prev = doc.getElementById("vibe-translate-btn-float");
+  if (prev) prev.remove();
 
-  const btn = doc.createElement("div");
-  btn.style.cssText = `
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 5px 14px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-    border-radius: 6px;
-    cursor: pointer;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    box-shadow: 0 1px 4px rgba(102,126,234,0.4);
-    transition: opacity 0.15s, transform 0.1s;
-    user-select: none;
-    white-space: nowrap;
-  `;
-  btn.textContent = "\uD83C\uDF10 Translate";
+  // Step 1: Append a hidden probe to find the popup's position
+  const probe = doc.createElement("div");
+  probe.id = "vibe-translate-probe";
+  probe.style.cssText = "width:0;height:0;overflow:hidden;margin:0;padding:0;";
+  append(probe);
 
-  btn.addEventListener("mouseenter", () => {
-    btn.style.opacity = "0.9";
-    btn.style.transform = "scale(1.02)";
-  });
-  btn.addEventListener("mouseleave", () => {
-    btn.style.opacity = "1";
-    btn.style.transform = "scale(1)";
-  });
+  // Step 2: In the next frame, read the popup position and create floating button
+  requestAnimationFrame(() => {
+    const popupEl = probe.parentElement;
+    let topPos = 10;
+    let leftPos = 10;
 
-  btn.addEventListener("click", () => {
-    // Replace button with translation result
-    container.remove();
-    const context = prepareContext(selectedText, reader);
-    const position = getPopupPosition();
-    if (position === "popup") {
-      buildInlinePopup(doc, append, context);
-    } else {
-      showCornerPopup(context, position, reader);
+    if (popupEl) {
+      try {
+        const popupRect = popupEl.getBoundingClientRect();
+        debug(`Popup rect: top=${popupRect.top}, left=${popupRect.left}, w=${popupRect.width}, h=${popupRect.height}`);
+        if (popupRect.top > 0 || popupRect.left > 0) {
+          // Position button above the popup
+          topPos = Math.max(4, popupRect.top - 34);
+          leftPos = Math.max(4, popupRect.left);
+        }
+      } catch (e) {
+        debug(`Could not get popup rect: ${e}`);
+      }
     }
-  });
 
-  container.appendChild(btn);
-  append(container);
-  debug("Translate button appended to selection popup");
+    // Remove the probe
+    try { probe.remove(); } catch (_e) { /* ignore */ }
+
+    // Step 3: Create the floating button
+    const floatBtn = doc.createElement("div");
+    floatBtn.id = "vibe-translate-btn-float";
+    floatBtn.style.cssText = `
+      position: fixed;
+      top: ${topPos}px;
+      left: ${leftPos}px;
+      z-index: 2147483647;
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(102,126,234,0.4);
+      transition: opacity 0.15s, transform 0.1s;
+      user-select: none;
+      white-space: nowrap;
+    `;
+    floatBtn.textContent = "\uD83C\uDF10 Translate";
+
+    floatBtn.addEventListener("mouseenter", () => {
+      floatBtn.style.opacity = "0.9";
+      floatBtn.style.transform = "scale(1.03)";
+    });
+    floatBtn.addEventListener("mouseleave", () => {
+      floatBtn.style.opacity = "1";
+      floatBtn.style.transform = "scale(1)";
+    });
+
+    const cleanup = () => {
+      try { floatBtn.remove(); } catch (_e) { /* ignore */ }
+      if (observer) observer.disconnect();
+    };
+
+    floatBtn.addEventListener("click", (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      cleanup();
+      const context = prepareContext(selectedText, reader);
+      const position = getPopupPosition();
+      if (position === "popup") {
+        buildInlinePopup(doc, append, context);
+      } else {
+        showCornerPopup(context, position, reader);
+      }
+    });
+
+    // Append to the reader document
+    const target = doc.body || doc.documentElement;
+    if (target) {
+      target.appendChild(floatBtn);
+    }
+    debug(`Floating translate button at top=${topPos}, left=${leftPos}`);
+
+    // Step 4: Watch for popup removal (selection cancelled) to clean up button
+    let observer: MutationObserver | null = null;
+    if (popupEl && popupEl.parentNode) {
+      observer = new MutationObserver(() => {
+        if (!popupEl.parentNode || !doc.contains(popupEl)) {
+          debug("Selection popup removed, cleaning up translate button");
+          cleanup();
+        }
+      });
+      observer.observe(popupEl.parentNode, { childList: true });
+    }
+
+    // Fallback: auto-remove after 30s
+    setTimeout(cleanup, 30000);
+  });
 }
 
 /**
