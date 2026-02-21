@@ -18,6 +18,7 @@ declare namespace _ZoteroTypes {
       "openai.modelId": string;
       "openai.endpoint": string;
       "targetLanguage": string;
+      "autoTranslate": boolean;
       "wordbookPath": string;
       "debug": boolean;
     };

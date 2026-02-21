@@ -13,6 +13,7 @@ pref("openai.modelId", "gpt-4o");
 pref("openai.endpoint", "https://api.openai.com/v1/chat/completions");
 // Translation
 pref("targetLanguage", "zh-CN");
+pref("autoTranslate", false);
 // Wordbook
 pref("wordbookPath", "");
 pref("debug", true);

@@ -1,5 +1,5 @@
 import { log, debug, error } from "./modules/debug";
-import { onReaderTextSelection } from "./modules/translate";
+import { onReaderTextSelection, triggerTranslation } from "./modules/translate";
 import { testConnection } from "./modules/llm-service";
 import { registerServerEndpoints, openWordbook } from "./modules/wordbook";
 
@@ -17,6 +17,7 @@ const plugin: VibeZoteroTranslateGlobal = {
 
     try {
       registerReaderListeners();
+      registerKeyboardShortcut();
 
       // Register wordbook endpoints on Zotero's built-in HTTP server
       registerServerEndpoints();
@@ -69,6 +70,38 @@ function registerReaderListeners() {
     log("Registered renderTextSelectionPopup listener");
   } catch (e: any) {
     error("Error registering reader listener", e);
+  }
+}
+
+/**
+ * Register Ctrl+Shift+T keyboard shortcut for manual translation trigger.
+ */
+function registerKeyboardShortcut() {
+  try {
+    const win = Zotero.getMainWindow();
+    if (!win) {
+      debug("No main window for keyboard shortcut registration");
+      return;
+    }
+
+    const handler = (e: KeyboardEvent) => {
+      // Ctrl+Shift+T (or Cmd+Shift+T on Mac)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "T") {
+        e.preventDefault();
+        e.stopPropagation();
+        debug("Keyboard shortcut Ctrl+Shift+T triggered");
+        triggerTranslation();
+      }
+    };
+
+    win.addEventListener("keydown", handler, true);
+    cleanupFns.push(() => {
+      try { win.removeEventListener("keydown", handler, true); } catch (_e) { /* ignore */ }
+    });
+
+    log("Registered keyboard shortcut: Ctrl+Shift+T");
+  } catch (e: any) {
+    error("Error registering keyboard shortcut", e);
   }
 }
 

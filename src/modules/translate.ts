@@ -320,6 +320,54 @@ async function performTranslation(
 }
 
 /**
+ * Check if auto-translate is enabled.
+ */
+function isAutoTranslateEnabled(): boolean {
+  try {
+    return !!Zotero.Prefs.get(`${PREF_PREFIX}.autoTranslate`, true);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Prepare translation context (screenshot + page number) from reader.
+ */
+function prepareContext(selectedText: string, reader: any): TranslationContext {
+  let enableContext = true;
+  try {
+    const val = Zotero.Prefs.get(`${PREF_PREFIX}.enableContext`, true);
+    if (val === false) enableContext = false;
+  } catch (e) { /* default to true */ }
+
+  debug(`Context (screenshot) enabled: ${enableContext}`);
+
+  const { screenshot, pageNumber } = enableContext
+    ? capturePageScreenshot(reader)
+    : { screenshot: null, pageNumber: null };
+
+  if (screenshot) {
+    log(`Got selection "${selectedText.substring(0, 50)}..." with page ${pageNumber} screenshot`);
+  } else {
+    log(`Got selection "${selectedText.substring(0, 50)}..." (no screenshot)`);
+  }
+
+  return {
+    text: selectedText,
+    pageScreenshot: screenshot,
+    pageNumber,
+  };
+}
+
+// Store the last selection event so keyboard shortcut can trigger translation
+let _lastSelectionEvent: {
+  reader: any;
+  doc: Document;
+  append: (element: Element) => void;
+  text: string;
+} | null = null;
+
+/**
  * Handle the renderTextSelectionPopup event from Zotero Reader.
  */
 export function onReaderTextSelection(event: {
@@ -339,42 +387,119 @@ export function onReaderTextSelection(event: {
 
   debug(`Selected text: "${selectedText.substring(0, 80)}${selectedText.length > 80 ? "..." : ""}"`);
 
-  // Check if context (screenshot) is enabled
-  let enableContext = true;
-  try {
-    const val = Zotero.Prefs.get(`${PREF_PREFIX}.enableContext`, true);
-    if (val === false) enableContext = false;
-  } catch (e) { /* default to true */ }
+  // Store for keyboard shortcut use
+  _lastSelectionEvent = { reader, doc, append, text: selectedText };
 
-  debug(`Context (screenshot) enabled: ${enableContext}`);
+  const autoTranslate = isAutoTranslateEnabled();
+  debug(`Auto-translate enabled: ${autoTranslate}`);
 
-  // Capture the current page as a screenshot for context (if enabled)
-  const { screenshot, pageNumber } = enableContext
-    ? capturePageScreenshot(reader)
-    : { screenshot: null, pageNumber: null };
+  if (autoTranslate) {
+    // Auto-translate: immediately start translation
+    const context = prepareContext(selectedText, reader);
+    const position = getPopupPosition();
+    debug(`Popup position mode: ${position}`);
 
-  if (screenshot) {
-    log(`Got selection "${selectedText.substring(0, 50)}..." with page ${pageNumber} screenshot`);
+    if (position === "popup") {
+      debug("Building inline popup...");
+      buildInlinePopup(doc, append, context);
+    } else {
+      debug("Showing corner popup...");
+      showCornerPopup(context, position, reader);
+    }
   } else {
-    log(`Got selection "${selectedText.substring(0, 50)}..." (no screenshot)`);
+    // Manual mode: show a "Translate" button
+    debug("Manual mode: showing translate button");
+    buildTranslateButton(doc, append, selectedText, reader);
+  }
+}
+
+/**
+ * Trigger translation from keyboard shortcut or button click.
+ * Uses the stored selection event or provided parameters.
+ */
+export function triggerTranslation(text?: string, reader?: any, doc?: Document, append?: (element: Element) => void): void {
+  const selText = text || _lastSelectionEvent?.text;
+  const selReader = reader || _lastSelectionEvent?.reader;
+  const selDoc = doc || _lastSelectionEvent?.doc;
+  const selAppend = append || _lastSelectionEvent?.append;
+
+  if (!selText || !selReader) {
+    debug("No selection available for translation");
+    return;
   }
 
-  const context: TranslationContext = {
-    text: selectedText,
-    pageScreenshot: screenshot,
-    pageNumber,
-  };
+  debug(`Triggering translation for: "${selText.substring(0, 50)}..."`);
 
+  const context = prepareContext(selText, selReader);
   const position = getPopupPosition();
-  debug(`Popup position mode: ${position}`);
 
-  if (position === "popup") {
-    debug("Building inline popup...");
-    buildInlinePopup(doc, append, context);
-  } else {
-    debug("Showing corner popup...");
-    showCornerPopup(context, position, reader);
+  if (position === "popup" && selDoc && selAppend) {
+    buildInlinePopup(selDoc, selAppend, context);
+  } else if (selReader) {
+    showCornerPopup(context, position !== "popup" ? position : "bottom-right", selReader);
   }
+}
+
+/**
+ * Build a "Translate" button that gets appended into Zotero's native text selection popup.
+ * Used when autoTranslate is disabled (manual mode).
+ */
+function buildTranslateButton(
+  doc: Document,
+  append: (element: Element) => void,
+  selectedText: string,
+  reader: any
+): void {
+  const container = doc.createElement("div");
+  container.id = TRANSLATE_CONTENT_ID;
+  container.style.cssText = `
+    width: calc(100% - 4px);
+    margin: 4px 2px;
+    box-sizing: border-box;
+  `;
+
+  const btn = doc.createElement("div");
+  btn.style.cssText = `
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--color-sidepane, #f5f5f5);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    color: #555;
+    transition: background 0.15s;
+    user-select: none;
+  `;
+  btn.textContent = "🌐 Translate (Ctrl+Shift+T)";
+
+  btn.addEventListener("mouseenter", () => {
+    btn.style.background = "var(--color-accent, #667eea)";
+    btn.style.color = "#fff";
+  });
+  btn.addEventListener("mouseleave", () => {
+    btn.style.background = "var(--color-sidepane, #f5f5f5)";
+    btn.style.color = "#555";
+  });
+
+  btn.addEventListener("click", () => {
+    // Replace button with translation popup
+    container.remove();
+    const context = prepareContext(selectedText, reader);
+    const position = getPopupPosition();
+    if (position === "popup") {
+      buildInlinePopup(doc, append, context);
+    } else {
+      showCornerPopup(context, position, reader);
+    }
+  });
+
+  container.appendChild(btn);
+  append(container);
+  debug("Translate button appended to DOM");
 }
 
 /**
