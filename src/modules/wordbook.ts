@@ -35,6 +35,19 @@ interface WordEntry {
 
 // ============ File Storage ============
 
+/**
+ * Cross-platform path join using nsIFile.append().
+ * Avoids mixing "/" and "\" which breaks nsIFile.initWithPath on Windows.
+ */
+function joinPath(base: string, ...parts: string[]): string {
+  const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+  file.initWithPath(base);
+  for (const part of parts) {
+    file.append(part);
+  }
+  return file.path;
+}
+
 function getWordbookDir(): string {
   try {
     const customPath = Zotero.Prefs.get(`${PREF_PREFIX}.wordbookPath`, true) as string;
@@ -43,7 +56,7 @@ function getWordbookDir(): string {
     }
   } catch (e) { /* use default */ }
   const homeDir = Services.dirsvc.get("Home", Ci.nsIFile).path;
-  return homeDir + "/Documents/zotero-wordbook";
+  return joinPath(homeDir, "Documents", "zotero-wordbook");
 }
 
 let _serverScriptCopied = false;
@@ -69,7 +82,7 @@ function ensureWordbookDir(): void {
  */
 function copyServerScript(wordbookDir: string): void {
   try {
-    const destPath = wordbookDir + "/wordbook_server.py";
+    const destPath = joinPath(wordbookDir, "wordbook_server.py");
     const destFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
     destFile.initWithPath(destPath);
 
@@ -110,7 +123,7 @@ function writeWordFile(entry: WordEntry): void {
   try {
     ensureWordbookDir();
     const wordbookDir = getWordbookDir();
-    const filePath = wordbookDir + "/" + entry.id + ".json";
+    const filePath = joinPath(wordbookDir, entry.id + ".json");
     const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
     file.initWithPath(filePath);
     Zotero.File.putContents(file, JSON.stringify(entry, null, 2));
@@ -122,7 +135,7 @@ function writeWordFile(entry: WordEntry): void {
 
 function appendToMetaJsonl(wordbookDir: string, entry: WordEntry): void {
   try {
-    const jsonlPath = wordbookDir + "/" + META_JSONL_NAME;
+    const jsonlPath = joinPath(wordbookDir, META_JSONL_NAME);
     const jsonLine = JSON.stringify(entry) + "\n";
     const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
     file.initWithPath(jsonlPath);
@@ -139,7 +152,7 @@ function appendToMetaJsonl(wordbookDir: string, entry: WordEntry): void {
 
 function deleteWordFile(id: string): boolean {
   try {
-    const filePath = getWordbookDir() + "/" + id + ".json";
+    const filePath = joinPath(getWordbookDir(), id + ".json");
     const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
     file.initWithPath(filePath);
     if (file.exists()) {
@@ -280,7 +293,7 @@ export function registerServerEndpoints(): void {
       const data = typeof options.data === "string" ? JSON.parse(options.data) : options.data;
       const { id } = data;
       if (!id) return [400, "application/json", JSON.stringify({ error: "id required" })];
-      const filePath = getWordbookDir() + "/" + id + ".json";
+      const filePath = joinPath(getWordbookDir(), id + ".json");
       const entry = readWordFile(filePath);
       if (!entry) return [404, "application/json", JSON.stringify({ error: "Word not found" })];
       entry.starred = !entry.starred;
@@ -392,12 +405,13 @@ export function openWordbook(): void {
     };
 
     const htmlContent = buildWordbookHTML(wordsJSON, stats);
-    const htmlPath = wordbookDir + "/" + HTML_FILENAME;
+    const htmlPath = joinPath(wordbookDir, HTML_FILENAME);
     const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
     file.initWithPath(htmlPath);
     Zotero.File.putContents(file, htmlContent);
 
-    const url = "file://" + htmlPath;
+    // Use Services.io.newFileURI for proper cross-platform file:// URL
+    const url = Services.io.newFileURI(file).spec;
     log(`Opening wordbook: ${url}`);
     Zotero.launchURL(url);
   } catch (e: any) {
