@@ -570,8 +570,17 @@ function buildTranslateButton(
     e.preventDefault(); e.stopPropagation(); cleanup();
     const context = prepareContext(selectedText, reader);
     const position = getPopupPosition();
-    if (position === "popup") { buildInlinePopup(doc, append, context); }
-    else { showCornerPopup(context, position, reader); }
+    // Try inline popup first; if the Zotero popup is gone, fall back to corner popup
+    if (position === "popup") {
+      try {
+        buildInlinePopup(doc, append, context);
+      } catch (_err) {
+        debug("Inline popup failed (popup may be gone), using corner popup");
+        showCornerPopup(context, "bottom-right", reader);
+      }
+    } else {
+      showCornerPopup(context, position, reader);
+    }
   });
 
   // Append to main window
