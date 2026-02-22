@@ -68,46 +68,52 @@ function buildSystemPrompt(
   singleWord: boolean,
   hasScreenshot: boolean,
 ): string {
-  if (singleWord && hasScreenshot) {
-    return `You are a concise dictionary. Translate the word to ${targetLanguage}.
-STRICT rules: Only output in the exact format below. No explanations, no examples, no extra text.
-Use fixed-width alignment: pad the part-of-speech tag to exactly 6 characters wide.
+  const contextNote = hasScreenshot ? "\nA screenshot of the current PDF page is provided for context. Use it to improve translation accuracy for domain-specific terms." : "";
 
-Format:
-[词性  ] 含义
-📌 上下文含义
+  if (singleWord) {
+    return `You are an expert academic dictionary and translator. Translate the word to ${targetLanguage}.${contextNote}
 
-Example output for "bank":
-[n.   ] 银行; 河岸
-[v.   ] 存款
-📌 此处指"河岸"`;
+Output in this EXACT format (use 【】markers):
+
+【单词】 {the word}  【音标】 英 [British IPA] | 美 [American IPA]
+【释义】
+1. {part of speech}. {meaning in ${targetLanguage}}
+2. {part of speech}. {meaning in ${targetLanguage}}
+【例句】
+• EN: {example sentence in English}
+• ${targetLanguage}: {example sentence translated}
+${hasScreenshot ? "📌 {contextual meaning in this paper}" : ""}
+
+Example for "elaborate":
+【单词】 elaborate  【音标】 英 [ɪˈlæbərət] | 美 [ɪˈlæbərət]
+【释义】
+1. adj. 复杂的；详尽的；精心制作的
+2. v. 详细说明；阐述
+【例句】
+• EN: He refused to elaborate on why he had resigned.
+• 简体中文: 他拒绝详细说明辞职的原因。`;
   }
 
-  if (singleWord && !hasScreenshot) {
-    return `You are a concise dictionary. Translate the word to ${targetLanguage}.
-STRICT rules: Only output in the exact format below. No explanations, no examples, no extra text.
-Use fixed-width alignment: pad the part-of-speech tag to exactly 6 characters wide.
+  return `You are an expert academic translator. Translate the text to ${targetLanguage}.${contextNote}
 
-Format:
-[词性  ] 含义1; 含义2
+Output in this EXACT format (use 【】markers):
 
-Example output for "run":
-[v.   ] 跑; 运行; 经营
-[n.   ] 奔跑; 运转`;
-  }
+【精准翻译】 {accurate translation into ${targetLanguage}}
+【核心句式】
+1. {grammar pattern}: {explanation in ${targetLanguage}}
+2. {grammar pattern}: {explanation in ${targetLanguage}}
+【重点词汇】
+1. {word} ({part of speech}): {meaning in ${targetLanguage}}
+2. {word} ({part of speech}): {meaning in ${targetLanguage}}
 
-  if (!singleWord && hasScreenshot) {
-    return `You are a professional translator. Translate the following text to ${targetLanguage}.
-Use the page screenshot as context to improve accuracy for domain-specific terms.
-
-Output format example:
-这是翻译结果
-
-📌 "term" 在此上下文中译为"术语"`;
-  }
-
-  return `You are a professional translator. Translate the following text to ${targetLanguage}.
-Only output the translation result, nothing else.`;
+Example for "It is not how much we have, but how much we enjoy, that makes happiness.":
+【精准翻译】 决定幸福的不是我们拥有多少，而是我们享受多少。
+【核心句式】
+1. It is... that...: 强调句型。用于强调句子的某一部分（此处强调是由什么造就了幸福）。
+2. not..., but...: 连词结构。表示"不是……而是……"，连接两个并列成分，表示逻辑上的取舍。
+【重点词汇】
+1. enjoy (v.): 享受；欣赏
+2. happiness (n.): 幸福；快乐`;
 }
 
 // ============ Bedrock Converse API ============
