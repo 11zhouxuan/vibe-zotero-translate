@@ -45,6 +45,7 @@ class WordEntry(BaseModel):
     starred: bool = False
     queryCount: int = 1
     pageNumber: Optional[int] = None
+    sourceTitle: Optional[str] = None
     createdAt: str = ""
     updatedAt: str = ""
 
@@ -184,7 +185,7 @@ def export_csv(starred: Optional[str] = Query(None)):
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "Word", "Translation", "Type", "Starred", "Count", "Page", "Created", "Updated"])
+    writer.writerow(["ID", "Word", "Translation", "Type", "Starred", "Count", "Page", "Source", "Created", "Updated"])
     for w in words:
         writer.writerow([
             w.get("id", ""),
@@ -194,6 +195,7 @@ def export_csv(starred: Optional[str] = Query(None)):
             "yes" if w.get("starred") else "no",
             w.get("queryCount", 0),
             w.get("pageNumber", "") or "",
+            w.get("sourceTitle", "") or "",
             w.get("createdAt", ""),
             w.get("updatedAt", ""),
         ])
@@ -243,6 +245,7 @@ def export_json(starred: Optional[str] = Query(None)):
             "starred": w.get("starred", False),
             "queryCount": w.get("queryCount", 1),
             "pageNumber": w.get("pageNumber"),
+            "sourceTitle": w.get("sourceTitle", ""),
             "createdAt": w.get("createdAt", ""),
             "updatedAt": w.get("updatedAt", ""),
         })

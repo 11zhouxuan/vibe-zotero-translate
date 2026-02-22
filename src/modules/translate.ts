@@ -8,6 +8,61 @@ const TRANSLATE_CONTENT_ID = "vibe-translate-content";
 // Preference key for popup position
 const PREF_PREFIX = "extensions.vibe-zotero-translate";
 
+// ============ Mouseup position tracking ============
+// Tracks the last mouseup position (screen coordinates) for dot placement
+let _lastMouseUp: { screenX: number; screenY: number; time: number } | null = null;
+
+/**
+ * Record a mouseup event's screen coordinates.
+ * Called from mouseup listeners installed on reader iframes.
+ */
+export function recordMouseUp(screenX: number, screenY: number): void {
+  _lastMouseUp = { screenX, screenY, time: Date.now() };
+  debug(`Recorded mouseup at screen (${screenX}, ${screenY})`);
+}
+
+/**
+ * Install mouseup listeners on all reader iframes to track mouse position.
+ * Returns a cleanup function.
+ */
+export function installMouseUpTracker(reader: any): (() => void) | null {
+  const cleanups: Array<() => void> = [];
+  try {
+    const iframeWin = reader._iframeWindow;
+    if (!iframeWin) return null;
+
+    const handler = (e: MouseEvent) => {
+      recordMouseUp(e.screenX, e.screenY);
+    };
+
+    // Listen on reader iframe
+    iframeWin.addEventListener("mouseup", handler, true);
+    cleanups.push(() => { try { iframeWin.removeEventListener("mouseup", handler, true); } catch (_e) {} });
+
+    // Listen on nested iframes
+    try {
+      const nestedIframes = iframeWin.document?.querySelectorAll?.("iframe");
+      if (nestedIframes) {
+        for (let i = 0; i < nestedIframes.length; i++) {
+          try {
+            const innerWin = nestedIframes[i].contentWindow;
+            if (innerWin) {
+              innerWin.addEventListener("mouseup", handler, true);
+              cleanups.push(() => { try { innerWin.removeEventListener("mouseup", handler, true); } catch (_e) {} });
+            }
+          } catch (_e) { /* cross-origin */ }
+        }
+      }
+    } catch (_e) { /* skip */ }
+
+    debug(`Installed mouseup tracker on ${cleanups.length} windows`);
+  } catch (e) {
+    debug(`installMouseUpTracker error: ${e}`);
+  }
+
+  return cleanups.length > 0 ? () => { for (const fn of cleanups) fn(); } : null;
+}
+
 type PopupPosition = "popup" | "bottom-left" | "bottom-right" | "top-left" | "top-right";
 
 /**
@@ -441,9 +496,9 @@ export function triggerTranslation(text?: string, reader?: any, doc?: Document, 
 }
 
 /**
- * Build a floating "Translate" button above the selected text.
- * Uses append() to probe the Zotero popup position, then creates a floating button above it.
- * A MutationObserver watches for popup removal to clean up the button.
+ * Build a small circular translate dot near the selected text.
+ * Uses mouseup screen coordinates for positioning in the main window.
+ * Dot disappears on scroll, click elsewhere, or popup removal.
  */
 function buildTranslateButton(
   doc: Document,
@@ -451,115 +506,99 @@ function buildTranslateButton(
   selectedText: string,
   reader: any
 ): void {
-  // Remove any previous floating button
-  const prev = doc.getElementById("vibe-translate-btn-float");
+  const mainWin = Zotero.getMainWindow();
+  if (!mainWin) { debug("No main window"); return; }
+  const mainDoc = mainWin.document;
+
+  // Remove previous dot
+  const prev = mainDoc.getElementById("vibe-translate-dot");
   if (prev) prev.remove();
 
-  // Step 1: Append a hidden probe to find the popup's position
+  // Probe for popup removal detection
   const probe = doc.createElement("div");
   probe.id = "vibe-translate-probe";
   probe.style.cssText = "width:0;height:0;overflow:hidden;margin:0;padding:0;";
   append(probe);
+  const popupEl = probe.parentElement;
 
-  // Step 2: In the next frame, read the popup position and create floating button
-  requestAnimationFrame(() => {
-    const popupEl = probe.parentElement;
-    let topPos = 10;
-    let leftPos = 10;
+  // Calculate position from mouseup screen coordinates
+  let topPos: number;
+  let leftPos: number;
 
-    if (popupEl) {
-      try {
-        const popupRect = popupEl.getBoundingClientRect();
-        debug(`Popup rect: top=${popupRect.top}, left=${popupRect.left}, w=${popupRect.width}, h=${popupRect.height}`);
-        if (popupRect.top > 0 || popupRect.left > 0) {
-          // Position button above the popup
-          topPos = Math.max(4, popupRect.top - 34);
-          leftPos = Math.max(4, popupRect.left);
-        }
-      } catch (e) {
-        debug(`Could not get popup rect: ${e}`);
-      }
-    }
+  if (_lastMouseUp && (Date.now() - _lastMouseUp.time < 5000)) {
+    const winScreenX = mainWin.screenX || (mainWin as any).screenLeft || 0;
+    const winScreenY = mainWin.screenY || (mainWin as any).screenTop || 0;
+    topPos = _lastMouseUp.screenY - winScreenY - 7;
+    leftPos = _lastMouseUp.screenX - winScreenX + 10;
+  } else if (popupEl) {
+    try {
+      const popupRect = popupEl.getBoundingClientRect();
+      const iframeWin = reader._iframeWindow;
+      let oX = 0, oY = 0;
+      if (iframeWin?.frameElement) { const r = iframeWin.frameElement.getBoundingClientRect(); oX = r.left; oY = r.top; }
+      topPos = popupRect.top + oY - 30;
+      leftPos = popupRect.left + oX + Math.round(popupRect.width / 2);
+    } catch (_e) { topPos = 100; leftPos = 100; }
+  } else {
+    try { probe.remove(); } catch (_e) {}
+    return;
+  }
 
-    // Remove the probe
-    try { probe.remove(); } catch (_e) { /* ignore */ }
+  try { probe.remove(); } catch (_e) {}
 
-    // Step 3: Create the floating button
-    const floatBtn = doc.createElement("div");
-    floatBtn.id = "vibe-translate-btn-float";
-    floatBtn.style.cssText = `
-      position: fixed;
-      top: ${topPos}px;
-      left: ${leftPos}px;
-      z-index: 2147483647;
-      pointer-events: auto;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 5px 14px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: #fff;
-      border-radius: 6px;
-      cursor: pointer;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 12px;
-      font-weight: 500;
-      box-shadow: 0 2px 8px rgba(102,126,234,0.4);
-      transition: opacity 0.15s, transform 0.1s;
-      user-select: none;
-      white-space: nowrap;
-    `;
-    floatBtn.textContent = "\uD83C\uDF10 Translate";
+  // Create dot
+  const dot = mainDoc.createElementNS ? mainDoc.createElementNS("http://www.w3.org/1999/xhtml", "div") as HTMLElement : mainDoc.createElement("div");
+  dot.id = "vibe-translate-dot";
+  dot.title = "Translate (Ctrl+Shift+T)";
+  dot.style.cssText = `position:fixed;top:${Math.max(4,topPos)}px;left:${Math.max(4,leftPos)}px;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);cursor:pointer;z-index:2147483647;pointer-events:auto;box-shadow:0 2px 6px rgba(102,126,234,0.5);transition:transform .15s,box-shadow .15s;display:flex;align-items:center;justify-content:center;`;
 
-    floatBtn.addEventListener("mouseenter", () => {
-      floatBtn.style.opacity = "0.9";
-      floatBtn.style.transform = "scale(1.03)";
-    });
-    floatBtn.addEventListener("mouseleave", () => {
-      floatBtn.style.opacity = "1";
-      floatBtn.style.transform = "scale(1)";
-    });
+  const label = mainDoc.createElementNS ? mainDoc.createElementNS("http://www.w3.org/1999/xhtml", "span") as HTMLElement : mainDoc.createElement("span");
+  label.style.cssText = `color:#fff;font-size:11px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1;user-select:none;`;
+  label.textContent = "T";
+  dot.appendChild(label);
 
-    const cleanup = () => {
-      try { floatBtn.remove(); } catch (_e) { /* ignore */ }
-      if (observer) observer.disconnect();
-    };
+  dot.addEventListener("mouseenter", () => { dot.style.transform = "scale(1.2)"; dot.style.boxShadow = "0 3px 10px rgba(102,126,234,0.6)"; });
+  dot.addEventListener("mouseleave", () => { dot.style.transform = "scale(1)"; dot.style.boxShadow = "0 2px 6px rgba(102,126,234,0.5)"; });
 
-    floatBtn.addEventListener("click", (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
-      cleanup();
-      const context = prepareContext(selectedText, reader);
-      const position = getPopupPosition();
-      if (position === "popup") {
-        buildInlinePopup(doc, append, context);
-      } else {
-        showCornerPopup(context, position, reader);
-      }
-    });
+  let pollInterval: ReturnType<typeof setInterval> | null = null;
+  const cleanup = () => {
+    try { dot.remove(); } catch (_e) {}
+    if (pollInterval) clearInterval(pollInterval);
+  };
 
-    // Append to the reader document
-    const target = doc.body || doc.documentElement;
-    if (target) {
-      target.appendChild(floatBtn);
-    }
-    debug(`Floating translate button at top=${topPos}, left=${leftPos}`);
-
-    // Step 4: Watch for popup removal (selection cancelled) to clean up button
-    let observer: MutationObserver | null = null;
-    if (popupEl && popupEl.parentNode) {
-      observer = new MutationObserver(() => {
-        if (!popupEl.parentNode || !doc.contains(popupEl)) {
-          debug("Selection popup removed, cleaning up translate button");
-          cleanup();
-        }
-      });
-      observer.observe(popupEl.parentNode, { childList: true });
-    }
-
-    // Fallback: auto-remove after 30s
-    setTimeout(cleanup, 30000);
+  dot.addEventListener("click", (e: Event) => {
+    e.preventDefault(); e.stopPropagation(); cleanup();
+    const context = prepareContext(selectedText, reader);
+    const position = getPopupPosition();
+    if (position === "popup") { buildInlinePopup(doc, append, context); }
+    else { showCornerPopup(context, position, reader); }
   });
+
+  // Append to main window
+  (mainDoc.getElementById("browser") || mainDoc.getElementById("main-window") || mainDoc.documentElement)?.appendChild(dot);
+  debug(`Translate dot at (${leftPos}, ${topPos}) in main window`);
+
+  // Poll for popup removal
+  pollInterval = setInterval(() => {
+    try { if (popupEl && (!popupEl.parentNode || !doc.contains(popupEl))) { cleanup(); } } catch (_e) { cleanup(); }
+  }, 500);
+
+  // Clean up on click elsewhere
+  const onMainClick = (ev: Event) => { if (!dot.contains(ev.target as Node)) { cleanup(); mainDoc.removeEventListener("mousedown", onMainClick, true); } };
+  setTimeout(() => mainDoc.addEventListener("mousedown", onMainClick, true), 200);
+
+  // Clean up on scroll (dot position becomes stale with position:fixed)
+  try {
+    const iframeWin = reader._iframeWindow;
+    if (iframeWin) {
+      const onScroll = () => { cleanup(); iframeWin.removeEventListener("scroll", onScroll, true); };
+      iframeWin.addEventListener("scroll", onScroll, true);
+      try {
+        const nested = iframeWin.document?.querySelectorAll?.("iframe");
+        if (nested) { for (let i = 0; i < nested.length; i++) { try { nested[i].contentWindow?.addEventListener("scroll", onScroll, true); } catch (_e) {} } }
+      } catch (_e) {}
+    }
+  } catch (_e) {}
 }
 
 /**

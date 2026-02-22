@@ -1,5 +1,5 @@
 import { log, debug, error } from "./modules/debug";
-import { onReaderTextSelection, triggerTranslation } from "./modules/translate";
+import { onReaderTextSelection, triggerTranslation, installMouseUpTracker } from "./modules/translate";
 import { testConnection } from "./modules/llm-service";
 import { registerServerEndpoints, openWordbook } from "./modules/wordbook";
 
@@ -18,6 +18,7 @@ const plugin: VibeZoteroTranslateGlobal = {
     try {
       registerReaderListeners();
       registerKeyboardShortcut();
+      registerMouseUpTracker();
 
       // Register wordbook endpoints on Zotero's built-in HTTP server
       registerServerEndpoints();
@@ -102,6 +103,54 @@ function registerKeyboardShortcut() {
     log("Registered keyboard shortcut: Ctrl+Shift+T");
   } catch (e: any) {
     error("Error registering keyboard shortcut", e);
+  }
+}
+
+/**
+ * Install mouseup tracker on reader tabs to track mouse position for translate dot.
+ */
+function registerMouseUpTracker() {
+  try {
+    // Install on currently active reader (if any)
+    try {
+      const readers = Zotero.Reader._readers;
+      if (readers && readers.length > 0) {
+        for (const reader of readers) {
+          setTimeout(() => {
+            const cleanup = installMouseUpTracker(reader);
+            if (cleanup) cleanupFns.push(cleanup);
+          }, 500);
+        }
+      }
+    } catch (_e) { /* no active readers */ }
+
+    // Watch for tab changes to install tracker on reader tabs
+    const notifierID = Zotero.Notifier.registerObserver(
+      {
+        notify: (event: string, type: string, ids: any[]) => {
+          if (event === "select" && type === "tab") {
+            setTimeout(() => {
+              try {
+                const reader = Zotero.Reader.getByTabID(ids[0]);
+                if (reader) {
+                  const cleanup = installMouseUpTracker(reader);
+                  if (cleanup) {
+                    cleanupFns.push(cleanup);
+                  }
+                }
+              } catch (e) {
+                debug(`MouseUp tracker install error: ${e}`);
+              }
+            }, 1000);
+          }
+        },
+      },
+      ["tab"],
+    );
+    cleanupFns.push(() => { try { Zotero.Notifier.unregisterObserver(notifierID); } catch (_e) {} });
+    log("Registered mouseup tracker for reader tabs");
+  } catch (e: any) {
+    error("Error registering mouseup tracker", e);
   }
 }
 

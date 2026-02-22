@@ -29,6 +29,7 @@ interface WordEntry {
   starred: boolean;
   queryCount: number;
   pageNumber: number | null;
+  sourceTitle: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -204,6 +205,7 @@ export function saveWord(
   translation: string,
   isSingleWord: boolean,
   pageNumber: number | null,
+  sourceTitle: string | null = null,
 ): void {
   try {
     const now = new Date().toISOString();
@@ -213,6 +215,7 @@ export function saveWord(
       existing.queryCount += 1;
       existing.updatedAt = now;
       if (pageNumber !== null) existing.pageNumber = pageNumber;
+      if (sourceTitle) existing.sourceTitle = sourceTitle;
       writeWordFile(existing);
       debug(`Updated word: "${word}" (count: ${existing.queryCount})`);
     } else {
@@ -224,6 +227,7 @@ export function saveWord(
         starred: false,
         queryCount: 1,
         pageNumber,
+        sourceTitle,
         createdAt: now,
         updatedAt: now,
       };
