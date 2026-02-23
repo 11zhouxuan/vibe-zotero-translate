@@ -9,16 +9,45 @@ const TRANSLATE_CONTENT_ID = "vibe-translate-content";
 const PREF_PREFIX = "extensions.vibe-zotero-translate";
 
 // ============ Mouseup position tracking ============
-// Tracks the last mouseup position (screen coordinates) for dot placement
-let _lastMouseUp: { screenX: number; screenY: number; time: number } | null = null;
+// Tracks the last mouseup position in MAIN WINDOW viewport coordinates
+let _lastMouseUp: { mainX: number; mainY: number; time: number } | null = null;
 
 /**
- * Record a mouseup event's screen coordinates.
- * Called from mouseup listeners installed on reader iframes.
+ * Record a mouseup event's position, converted to main window viewport coordinates.
+ * Uses clientX/Y and walks up the iframe chain to accumulate offsets.
  */
 export function recordMouseUp(screenX: number, screenY: number): void {
-  _lastMouseUp = { screenX, screenY, time: Date.now() };
-  debug(`Recorded mouseup at screen (${screenX}, ${screenY})`);
+  // This is called with screenX/Y but we also store them for fallback
+  _lastMouseUp = { mainX: screenX, mainY: screenY, time: Date.now() };
+}
+
+function recordMouseUpFromEvent(e: MouseEvent): void {
+  try {
+    const mainWin = Zotero.getMainWindow();
+    // Use mozInnerScreenX/Y (Firefox/Zotero specific) for accurate conversion
+    // mozInnerScreenX/Y = screen coordinates of the content area top-left (excludes title bar/borders)
+    // This is exactly what position:fixed top:0 left:0 corresponds to
+    const innerScreenX = (mainWin as any).mozInnerScreenX;
+    const innerScreenY = (mainWin as any).mozInnerScreenY;
+
+    if (typeof innerScreenX === "number" && typeof innerScreenY === "number") {
+      const x = e.screenX - innerScreenX;
+      const y = e.screenY - innerScreenY;
+      _lastMouseUp = { mainX: x, mainY: y, time: Date.now() };
+      debug(`Recorded mouseup via mozInnerScreen: screen=(${e.screenX},${e.screenY}), innerScreen=(${innerScreenX},${innerScreenY}), viewport=(${x},${y})`);
+    } else {
+      // Fallback: use screenX/Y minus window position (less accurate on Windows)
+      const winX = mainWin.screenX || (mainWin as any).screenLeft || 0;
+      const winY = mainWin.screenY || (mainWin as any).screenTop || 0;
+      const x = e.screenX - winX;
+      const y = e.screenY - winY;
+      _lastMouseUp = { mainX: x, mainY: y, time: Date.now() };
+      debug(`Recorded mouseup via screenX fallback: screen=(${e.screenX},${e.screenY}), win=(${winX},${winY}), viewport=(${x},${y})`);
+    }
+  } catch (_e) {
+    _lastMouseUp = { mainX: e.screenX, mainY: e.screenY, time: Date.now() };
+    debug(`Recorded mouseup error fallback: (${e.screenX},${e.screenY})`);
+  }
 }
 
 /**
@@ -32,7 +61,7 @@ export function installMouseUpTracker(reader: any): (() => void) | null {
     if (!iframeWin) return null;
 
     const handler = (e: MouseEvent) => {
-      recordMouseUp(e.screenX, e.screenY);
+      recordMouseUpFromEvent(e);
     };
 
     // Listen on reader iframe
@@ -442,6 +471,9 @@ export function onReaderTextSelection(event: {
 
   debug(`Selected text: "${selectedText.substring(0, 80)}${selectedText.length > 80 ? "..." : ""}"`);
 
+  // Ensure mouseup tracker is installed on this reader (iframes may have loaded since initial install)
+  try { installMouseUpTracker(reader); } catch (_e) { /* ignore */ }
+
   // Store for keyboard shortcut use
   _lastSelectionEvent = { reader, doc, append, text: selectedText };
 
@@ -514,37 +546,42 @@ function buildTranslateButton(
   const prev = mainDoc.getElementById("vibe-translate-dot");
   if (prev) prev.remove();
 
-  // Probe for popup removal detection
-  const probe = doc.createElement("div");
-  probe.id = "vibe-translate-probe";
-  probe.style.cssText = "width:0;height:0;overflow:hidden;margin:0;padding:0;";
-  append(probe);
-  const popupEl = probe.parentElement;
+  // Pre-embed a hidden container in the Zotero popup for translation results (Issue 1 fix)
+  const inlineContainer = doc.createElement("div");
+  inlineContainer.id = TRANSLATE_CONTENT_ID;
+  inlineContainer.style.cssText = "display:none;";
+  append(inlineContainer);
+  const popupEl = inlineContainer.parentElement;
 
-  // Calculate position from mouseup screen coordinates
-  let topPos: number;
-  let leftPos: number;
-
-  if (_lastMouseUp && (Date.now() - _lastMouseUp.time < 5000)) {
-    const winScreenX = mainWin.screenX || (mainWin as any).screenLeft || 0;
-    const winScreenY = mainWin.screenY || (mainWin as any).screenTop || 0;
-    topPos = _lastMouseUp.screenY - winScreenY - 7;
-    leftPos = _lastMouseUp.screenX - winScreenX + 10;
-  } else if (popupEl) {
+  // Get popup position for validation
+  let popupMainX = -1, popupMainY = -1;
+  if (popupEl) {
     try {
       const popupRect = popupEl.getBoundingClientRect();
       const iframeWin = reader._iframeWindow;
       let oX = 0, oY = 0;
       if (iframeWin?.frameElement) { const r = iframeWin.frameElement.getBoundingClientRect(); oX = r.left; oY = r.top; }
-      topPos = popupRect.top + oY - 30;
-      leftPos = popupRect.left + oX + Math.round(popupRect.width / 2);
-    } catch (_e) { topPos = 100; leftPos = 100; }
-  } else {
-    try { probe.remove(); } catch (_e) {}
-    return;
+      popupMainX = popupRect.left + oX;
+      popupMainY = popupRect.top + oY;
+    } catch (_e) { /* ignore */ }
   }
 
-  try { probe.remove(); } catch (_e) {}
+  // Calculate dot position from mouseup coordinates (now in main window viewport coords)
+  let topPos: number;
+  let leftPos: number;
+
+  if (_lastMouseUp && (Date.now() - _lastMouseUp.time < 5000)) {
+    topPos = _lastMouseUp.mainY - 7;
+    leftPos = _lastMouseUp.mainX + 10;
+    debug(`Dot position from mouseup: mainX=${_lastMouseUp.mainX}, mainY=${_lastMouseUp.mainY}, age=${Date.now() - _lastMouseUp.time}ms, dot=(${leftPos},${topPos})`);
+  } else if (popupMainX >= 0) {
+    topPos = popupMainY - 28;
+    leftPos = popupMainX + 100;
+    debug(`No mouseup, using popup fallback: dot=(${leftPos},${topPos})`);
+  } else {
+    debug("No mouseup and no popup, skipping dot");
+    return;
+  }
 
   // Create dot
   const dot = mainDoc.createElementNS ? mainDoc.createElementNS("http://www.w3.org/1999/xhtml", "div") as HTMLElement : mainDoc.createElement("div");
@@ -570,16 +607,40 @@ function buildTranslateButton(
     e.preventDefault(); e.stopPropagation(); cleanup();
     const context = prepareContext(selectedText, reader);
     const position = getPopupPosition();
-    // Try inline popup first; if the Zotero popup is gone, fall back to corner popup
-    if (position === "popup") {
-      try {
-        buildInlinePopup(doc, append, context);
-      } catch (_err) {
-        debug("Inline popup failed (popup may be gone), using corner popup");
-        showCornerPopup(context, "bottom-right", reader);
-      }
+
+    if (position === "popup" && inlineContainer.parentNode) {
+      // Use the pre-embedded container in the Zotero popup
+      debug("Using pre-embedded inline container");
+      inlineContainer.style.cssText = `
+        width: calc(100% - 4px);
+        margin: 4px 2px;
+        padding: 8px 10px;
+        background: var(--color-sidepane, #f5f5f5);
+        border-radius: 6px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 13px;
+        color: #333;
+        line-height: 1.6;
+        max-height: 300px;
+        overflow-y: auto;
+        box-sizing: border-box;
+      `;
+      // Add title bar
+      const titleBar = createTitleBar(doc);
+      titleBar.setAttribute("data-role", "title");
+      inlineContainer.appendChild(titleBar);
+      // Add loading state
+      const contentEl = doc.createElement("div");
+      contentEl.setAttribute("data-role", "content");
+      contentEl.style.cssText = "color: #888; font-style: italic;";
+      contentEl.textContent = "Translating...";
+      inlineContainer.appendChild(contentEl);
+      // Start translation
+      performTranslation(inlineContainer, doc, context);
     } else {
-      showCornerPopup(context, position, reader);
+      // Fallback to corner popup
+      debug("Inline container gone, using corner popup");
+      showCornerPopup(context, position !== "popup" ? position : "bottom-right", reader);
     }
   });
 
